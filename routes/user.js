@@ -4,7 +4,7 @@ const router = express.Router();
 const { body, validationResult } = require('express-validator');
 //import database
 const connection = require('../config/database');
- 
+
 /**
  * INDEX POSTS
  */
@@ -138,6 +138,8 @@ router.post('/register', [
 
     const errors = validationResult(req);
 
+    const token = makeid(40);
+
     if (!errors.isEmpty()) {
         return res.status(422).json({
             errors: errors.array()
@@ -149,7 +151,8 @@ router.post('/register', [
         name: req.body.name,
         noTelp: req.body.noTelp,
         email: req.body.email,  
-        password: req.body.password
+        password: req.body.password,
+        token : token,
     }
 
     // insert query
@@ -170,6 +173,8 @@ router.post('/register', [
     })
 
 });
+
+
 
 /**
  * SHOW POST
@@ -251,7 +256,7 @@ router.post('/login', [
                         name : rows[0].name,
                         noTelp : rows[0].noTelp,
                         email : rows[0].email,
-                        token : "wehfiwkefnsokds",
+                        token : rows[0].token,
                         balance : rows[0].balance,
                     }
                 })
@@ -263,3 +268,15 @@ router.post('/login', [
 
 
 module.exports = router;
+
+function makeid(length) {
+    let result = '';
+    const characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+    const charactersLength = characters.length;
+    let counter = 0;
+    while (counter < length) {
+      result += characters.charAt(Math.floor(Math.random() * charactersLength));
+      counter += 1;
+    }
+    return result;
+}
