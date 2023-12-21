@@ -46,7 +46,7 @@ router.get('/questions', function (req, res) {
 
 router.get('/questions/result', function (req, res) {
     //query
-    connection.query('SELECT * FROM questionnaireresult ORDER BY resultDate DESC', function (err, rows) {
+    connection.query("SELECT resultId, DATE_FORMAT(resultDate, '%d %M %Y') as resultDate, resultQuestionnaire FROM questionnaireresult ORDER BY resultDate DESC", function (err, rows) {
         if (err) {
             return res.status(500).json({
                 error: true,
