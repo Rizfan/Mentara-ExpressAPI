@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 //import express validator
-const { body, validationResult } = require('express-validator');
+const { body, validationResult, header } = require('express-validator');
 //import database
 const connection = require('../config/database');
 
@@ -44,22 +44,67 @@ router.get('/questions', function (req, res) {
     });
 });
 
-router.get('/questions/result', function (req, res) {
-    //query
-    connection.query("SELECT resultId, DATE_FORMAT(resultDate, '%d %M %Y') as resultDate, resultQuestionnaire FROM questionnaireresult ORDER BY resultDate DESC", function (err, rows) {
+router.get('/questions/result',[
+    header('Authorization').notEmpty()
+], function (req, res) {
+    
+    const errors = validationResult(req);
+
+    if (!errors.isEmpty()) {
+        return res.status(422).json({
+            error: true,
+            message: 'Token is empty',
+        });
+    }
+
+    //define formData
+    let formData = {
+        token: req.headers.authorization,
+    }
+
+    connection.query(`SELECT * FROM users WHERE token = '${formData.token}'`, function (err, rows) {
+        //if(err) throw err
         if (err) {
             return res.status(500).json({
                 error: true,
                 message: 'Internal Server Error',
             })
         } else {
-            return res.status(200).json({
-                error: false,
-                message: 'Results fetched successfully',
-                listResult: rows
-            })
+            if (rows.length <= 0) {
+                return res.status(404).json({
+                    error: true,
+                    message: 'User not found',
+                })
+            } else {
+                const userId = rows[0].id;
+                connection.query(`SELECT resultId, DATE_FORMAT(resultDate, '%d %M %Y') as resultDate, resultQuestionnaire FROM questionnaireresult WHERE userId = '${userId}' ORDER BY resultId desc`, function (err, rows) {
+                    //if(err) throw err
+                    if (err) {
+                        return res.status(500).json({
+                            error: true,
+                            message: 'Internal Server Error',
+                        })
+                    } else {
+                        if (rows.length <= 0) {
+                            return res.status(404).json({
+                                error: true,
+                                message: 'Result not found',
+                            })
+                        } else {
+                            return res.status(201).json({
+                                error: false,
+                                message: 'Result fetched successfully',
+                                listResult: rows
+                            })
+                        }
+                    }
+                })
+            }
         }
-    });
+    })
+
+    //query
+    
 });
 
 router.post('/questions/result',[
@@ -165,16 +210,103 @@ router.post('/register', [
             })
         } else {
             return res.status(201).json({
-                status: true,
+                error: false,
                 message: 'Insert Data Successfully',
-                data: rows[0]
             })
         }
     })
 
 });
 
+router.post('/questions/result/count',[
+    body('point').notEmpty(),
+], (req, res) => {
+    const errors = validationResult(req);
 
+    if (!errors.isEmpty()) {
+        return res.status(422).json({
+            error: true,
+            message: 'Point is empty',
+        });
+    }
+    var datetime = new Date();
+    const result = countResult(req.body.point);
+    //define formData
+    let formData = {
+        resultDate : datetime.toISOString().slice(0,10),
+        resultQuestionnaire: result,
+    }
+
+    // insert query
+    connection.query('INSERT INTO questionnaireresult SET ?', formData, function (err, rows) {
+        //if(err) throw err
+        if (err) {
+            return res.status(500).json({
+                error: true,
+                message: 'Internal Server Error',
+            })
+        } else {
+            connection.query(`SELECT resultId, DATE_FORMAT(resultDate, '%d %M %Y') as resultDate, resultQuestionnaire FROM questionnaireresult WHERE resultDate = '${formData.resultDate}' AND resultQuestionnaire = '${formData.resultQuestionnaire}'`, function (err, rows) {
+                //if(err) throw err
+                if (err) {
+                    return res.status(500).json({
+                        error: true,
+                        message: 'Internal Server Error',
+                    })
+                } else {
+                    if (rows.length <= 0) {
+                        return res.status(404).json({
+                            error: true,
+                            message: 'Result not found',
+                        })
+                    } else {
+                        return res.status(201).json({
+                            error: false,
+                            message: 'Result fetched successfully',
+                            result: rows[0]
+                        })
+                    }
+                }
+            })
+        }
+    })
+});
+
+router.post("/balance", [
+    body('balance').notEmpty(),
+    header('Authorization').notEmpty()
+], (req, res) => {
+    const errors = validationResult(req);
+
+    if (!errors.isEmpty()) {
+        return res.status(422).json({
+            error: true,
+            message: 'Balance is empty',
+        });
+    }
+
+    //define formData
+    let formData = {
+        balance: req.body.balance,
+        token: req.headers.Authorization,
+    }
+
+    // insert query
+    connection.query(`UPDATE users SET balance = ${formData.balance} WHERE token = '${formData.token}'`, function (err, rows) {
+        //if(err) throw err
+        if (err) {
+            return res.status(500).json({
+                error: true,
+                message: 'Internal Server Error',
+            })
+        } else {
+            return res.status(201).json({
+                error: false,
+                message: 'Balance updated successfully',
+            })
+        }
+    })
+});
 
 /**
  * SHOW POST
@@ -277,6 +409,18 @@ function makeid(length) {
     while (counter < length) {
       result += characters.charAt(Math.floor(Math.random() * charactersLength));
       counter += 1;
+    }
+    return result;
+}
+
+function countResult(point) {
+    let result = '';
+    if(point<23){
+        result = 'Low';
+    }else if(point>=23 && point<=36){
+        result = 'Medium';
+    }else if(point>36 && point<=50){
+        result = 'High';
     }
     return result;
 }
